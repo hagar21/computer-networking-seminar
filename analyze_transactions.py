@@ -2,6 +2,8 @@ import pandas as pd
 import networkx as nx
 import os
 import matplotlib.pyplot as plt
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 from collections import Counter
 from operator import itemgetter
 
@@ -16,6 +18,63 @@ def combined_graphs_edges(bigGraph, smallGraph):
 
     return bigGraph
 
+def network_plot_3D(G, angle, save, nodeDict):
+
+    # Get node positions
+    pos = nx.get_node_attributes(G, 'pos')
+    
+    # Get number of nodes
+    n = G.number_of_nodes()
+
+    # Get the maximum number of edges adjacent to a single node
+    edge_max = 0
+    for node in G.nodes:
+        if edge_max < G.degree[node]:
+            edge_max = G.degree[node]
+    
+    # Define color range proportional to number of edges adjacent to a single node
+    colors = [plt.cm.plasma(G.degree[i]/edge_max) for i in G.nodes] 
+
+    # 3D network plot
+    with plt.style.context(('ggplot')):
+        
+        fig = plt.figure(figsize=(10,7))
+        ax = Axes3D(fig)
+        
+        # Loop on the pos dictionary to extract the x,y,z coordinates of each node
+        for key, value in pos.items():
+            xi = value[0]
+            yi = value[1]
+            zi = value[2]
+            
+            # Scatter plot
+            ax.scatter(xi, yi, zi, c=colors[key], s=20+20*G.degree(key), edgecolors='k', alpha=0.7)
+        
+        # Loop on the list of edges to get the x,y,z, coordinates of the connected nodes
+        # Those two points are the extrema of the line to be plotted
+        for i, j in enumerate(G.edges()):
+            j = j[1]
+            j = nodeDict[j] 
+            x = np.array((pos[j[0]][0], pos[j[1]][0]))
+            y = np.array((pos[j[0]][1], pos[j[1]][1]))
+            z = np.array((pos[j[0]][2], pos[j[1]][2]))
+        
+        # Plot the connecting lines
+            ax.plot(x, y, z, c='black', alpha=0.5)
+    
+    # Set the initial view
+    ax.view_init(30, angle)
+
+    # Hide the axes
+    ax.set_axis_off()
+
+    if save is not False:
+         plt.savefig(os.getcwd()+str(angle).zfill(3)+".png")
+         plt.close('all')
+    else:
+          plt.show()
+    
+    return
 
 def degree_histogram_directed(G, in_degree=False, out_degree=False):
     """Return a list of the frequency of each degree value.
@@ -96,17 +155,22 @@ def draw_graph(G):
 
 if __name__ == '__main__':
     usecols = ['from_address', 'to_address', 'value']
-    dirname = 'files'
+    dirname = '/mnt/s/Geth/ethereum-etl/output/transactions/'
 
     g = nx.MultiDiGraph()
-
-    for filename in os.listdir(dirname):
-        print(filename)
-        p = pd.read_csv(dirname+'/'+filename, usecols=usecols)
-        p['weight'] = p.groupby(['from_address', 'to_address'])['value'].transform('sum')
-        p.drop_duplicates(subset=['from_address', 'to_address'], inplace=True)
-        gc = nx.convert_matrix.from_pandas_edgelist(df=p, source='from_address', target='to_address', edge_attr='weight', create_using=nx.MultiDiGraph())
-        g = combined_graphs_edges(g, gc)
+    os.chdir('/mnt/s/Geth/ethereum-etl/output/transactions/')
+    for start_block in os.listdir(dirname):
+        temp_dir = start_block.split('=')[1]
+        if int(temp_dir) >= 11000000:
+            end_block = os.listdir(start_block)[0]
+            filename = os.listdir(start_block + '/' + end_block)[0]
+            pip = start_block + '/' + '/' + end_block + '/' + filename
+            print(pip)
+            p = pd.read_csv(pip, usecols=usecols, error_bad_lines=False, index_col=False, dtype='unicode', low_memory=False)
+            p['weight'] = p.groupby(['from_address', 'to_address'])['value'].transform('sum')
+            p.drop_duplicates(subset=['from_address', 'to_address'], inplace=True)
+            gc = nx.convert_matrix.from_pandas_edgelist(df=p, source='from_address', target='to_address', edge_attr='weight', create_using=nx.MultiDiGraph())
+            g = combined_graphs_edges(g, gc)
 
     print('Number of accounts:', g.number_of_nodes())
     plot_degree_dist(g)
@@ -121,9 +185,18 @@ if __name__ == '__main__':
     print('     Number of SCCs:', nx.number_strongly_connected_components(g))
     print('     Number of WCCs:', nx.number_weakly_connected_components(g))
 
-    print('Top 10 most important nodes in MFG, ranked by PageRank')
-    print(page_rank(g), '\n')
-    print('Top 10 most important nodes in MFG, ranked by degree centrality')
-    print(degree_centrality(g), '\n')
+    #    print('Top 10 most important nodes in MFG, ranked by PageRank')
+    #    print(page_rank(g), '\n')
+    #    print('Top 10 most important nodes in MFG, ranked by degree centrality')
+    #    print(degree_centrality(g), '\n')
+    """
+    # draw_graph(g)
+    i = 0
+    nodeDict = {}
+    for node in g.nodes:
+        nodeDict[node] = i
+        i += 1
 
-    draw_graph(g)
+    diG = nx.Graph(g)
+    network_plot_3D(diG, 0, True, nodeDict)
+    """
