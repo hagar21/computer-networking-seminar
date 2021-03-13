@@ -4,8 +4,8 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
-from collections import Counter
-from operator import itemgetter
+import numpy as np
+from mayavi import mlab
 
 
 def combined_graphs_edges(bigGraph, smallGraph):
@@ -17,6 +17,7 @@ def combined_graphs_edges(bigGraph, smallGraph):
             bigGraph.add_edge(u, v, weight=w)
 
     return bigGraph
+
 
 def network_plot_3D(G, angle, save, nodeDict):
 
@@ -76,6 +77,7 @@ def network_plot_3D(G, angle, save, nodeDict):
     
     return
 
+
 def degree_histogram_directed(G, in_degree=False, out_degree=False):
     """Return a list of the frequency of each degree value.
 
@@ -113,29 +115,65 @@ def degree_histogram_directed(G, in_degree=False, out_degree=False):
     return freq
 
 
+def plot_degree_graph(freq, title):
+    plt.figure(figsize=(12, 8))
+    plt.loglog(range(len(freq)), freq, 'bo-')
+    plt.xlabel(title)
+    plt.ylabel('Frequency')
+
+    num = '(a) '
+    if title == 'Indegree':
+        num = '(b) '
+    else:
+        if title == 'Outdegree':
+            num = '(c) '
+
+    plt.title(num + title)
+    plt.savefig(graphs_root_folder + '/' + title + '.png')
+
+
 def plot_degree_dist(G):
     in_degree_freq = degree_histogram_directed(G, in_degree=True)
     out_degree_freq = degree_histogram_directed(G, out_degree=True)
     degree_freq = degree_histogram_directed(G)
 
-    plt.figure(figsize=(12, 8))
-    plt.loglog(range(len(in_degree_freq)), in_degree_freq, 'go-', label='in-degree')
-    plt.loglog(range(len(out_degree_freq)), out_degree_freq, 'bo-', label='out-degree')
-    plt.loglog(range(len(degree_freq)), degree_freq, 'ro-', label='degree')
-    plt.xlabel('Degree')
-    plt.ylabel('Frequency')
-    plt.title('MFG Degree distribution')
-    plt.legend()
-    plt.show()
+    plot_degree_graph(in_degree_freq, 'Indegree')
+    plot_degree_graph(out_degree_freq, 'Outdegree')
+    plot_degree_graph(degree_freq, 'Degree')
+    # plt.figure(figsize=(12, 8))
+    # plt.loglog(range(len(in_degree_freq)), in_degree_freq, 'go-', label='in-degree')
+    # plt.xlabel('Indegree')
+    # plt.ylabel('Frequency')
+    # plt.title('(b) Indegree')
+    # plt.savefig(graphs_root_folder + '/' + 'indegree.png')
+    #
+    # plt.figure(figsize=(12, 8))
+    # plt.loglog(range(len(out_degree_freq)), out_degree_freq, 'bo-', label='out-degree')
+    # plt.xlabel('Outdegree')
+    # plt.ylabel('Frequency')
+    # plt.title('(c) OutDegree')
+    # plt.savefig(graphs_root_folder + '/' + 'outdegree.png')
+    #
+    # plt.figure(figsize=(12, 8))
+    # plt.loglog(range(len(degree_freq)), degree_freq, 'ro-', label='degree')
+    # plt.xlabel('Degree')
+    # plt.ylabel('Frequency')
+    # plt.title('(a) Degree')
+    # plt.savefig(graphs_root_folder + '/' + 'degree.png')
 
 
-def page_rank(G):
+def page_rank(G, number_of_elements):
     pk = nx.pagerank_numpy(G, weight=None)
-    return sorted(pk.items(), key=lambda x:x[1], reverse=True)[:10]
+    # return sorted(pk.items(), key=lambda x:x[1], reverse=True)[:10]
+    # return heapq.nlargest(number_of_elements, pk.items(), key=lambda x: x[1])
+    return max(pk.items(), key=lambda x: x[1])
 
 
-def degree_centrality(G):
-    return sorted(nx.degree_centrality(G).items(), key=lambda x: x[1], reverse=True)[0:10]
+def degree_centrality(G, number_of_elements):
+    # return sorted(nx.degree_centrality(G).items(), key=lambda x: x[1], reverse=True)[0:10]
+    dc = nx.degree_centrality(G)
+    # return heapq.nlargest(number_of_elements, dc.items(), key=lambda x: x[1])
+    return max(dc.items(), key=lambda x: x[1])
 
 
 def draw_graph(G):
@@ -153,23 +191,66 @@ def draw_graph(G):
     plt.show()
 
 
+def draw_3d(H):
+    # reorder nodes from 0,len(G)-1
+    G = nx.convert_node_labels_to_integers(H)
+    # 3d spring layout
+    pos = nx.spring_layout(G, dim=3)
+    # numpy array of x,y,z positions in sorted node order
+    xyz = np.array([pos[v] for v in sorted(G)])
+    # scalar colors
+    scalars = np.array(list(G.nodes())) + 5
+
+    pts = mlab.points3d(
+        xyz[:, 0],
+        xyz[:, 1],
+        xyz[:, 2],
+        scalars,
+        scale_factor=0.1,
+        scale_mode="none",
+        colormap="Blues",
+        resolution=20,
+    )
+
+    pts.mlab_source.dataset.lines = np.array(list(G.edges()))
+    tube = mlab.pipeline.tube(pts, tube_radius=0.01)
+    mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
+    plt.savefig(graphs_root_folder + '/' + 'graph.png')
+
+
 if __name__ == '__main__':
+    graphs_root_folder = 'C:/Users/hagarsheffer/PycharmProjects/dsProj/graphs'
     usecols = ['from_address', 'to_address', 'value']
-    dirname = '/mnt/s/Geth/ethereum-etl/output/transactions/'
+    # dirname = '/mnt/s/Geth/ethereum-etl/output/transactions/'
+    dirname = 'C:/Users/hagarsheffer/PycharmProjects/dsProj/trans'
 
     g = nx.MultiDiGraph()
-    os.chdir('/mnt/s/Geth/ethereum-etl/output/transactions/')
+    # os.chdir('/mnt/s/Geth/ethereum-etl/output/transactions/')
+    os.chdir('C:/Users/hagarsheffer/PycharmProjects/dsProj/trans')
     for start_block in os.listdir(dirname):
         temp_dir = start_block.split('=')[1]
-        if int(temp_dir) >= 11000000:
+        if int(temp_dir) >= 11999000:
             end_block = os.listdir(start_block)[0]
             filename = os.listdir(start_block + '/' + end_block)[0]
             pip = start_block + '/' + '/' + end_block + '/' + filename
             print(pip)
-            p = pd.read_csv(pip, usecols=usecols, error_bad_lines=False, index_col=False, dtype='unicode', low_memory=False)
+            p = pd.read_csv(
+                pip,
+                usecols=usecols,
+                error_bad_lines=False,
+                index_col=False,
+                dtype='unicode',
+                low_memory=False,
+            )
             p['weight'] = p.groupby(['from_address', 'to_address'])['value'].transform('sum')
             p.drop_duplicates(subset=['from_address', 'to_address'], inplace=True)
-            gc = nx.convert_matrix.from_pandas_edgelist(df=p, source='from_address', target='to_address', edge_attr='weight', create_using=nx.MultiDiGraph())
+            gc = nx.convert_matrix.from_pandas_edgelist(
+                df=p,
+                source='from_address',
+                target='to_address',
+                edge_attr='weight',
+                create_using=nx.MultiDiGraph(),
+            )
             g = combined_graphs_edges(g, gc)
 
     print('Number of accounts:', g.number_of_nodes())
@@ -185,10 +266,13 @@ if __name__ == '__main__':
     print('     Number of SCCs:', nx.number_strongly_connected_components(g))
     print('     Number of WCCs:', nx.number_weakly_connected_components(g))
 
-    #    print('Top 10 most important nodes in MFG, ranked by PageRank')
-    #    print(page_rank(g), '\n')
-    #    print('Top 10 most important nodes in MFG, ranked by degree centrality')
-    #    print(degree_centrality(g), '\n')
+    print('Top 10 most important nodes in MFG, ranked by PageRank')
+    print(page_rank(g, 10), '\n')
+    print('Top 10 most important nodes in MFG, ranked by degree centrality')
+    print(degree_centrality(g, 10), '\n')
+
+    draw_3d(g)
+
     """
     # draw_graph(g)
     i = 0
